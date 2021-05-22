@@ -1,0 +1,18 @@
+points = 1500,
+wave_speed = 0.00121,
+linear_speed = 0.03,
+color_speed = 0.5,
+screen_size = 1.5,
+line_width = 4
+
+
+spiral = sin(time + theta * 8),
+
+x =
+    1.2 * sin(time * 0.3 + theta * 5) +
+    sin(time * 0.5 + theta * 3) * (3.0 * wave + 1.2 * (1-wave)),
+
+y =
+    sin(time * 0.6 + theta * 11) * (0.5 * wave + 2.0 * (1-wave)) +
+    sin(time * 0.5 + theta * 7) * (1.3 * wave + 0.5 * (1-wave))
+

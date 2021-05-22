@@ -1,0 +1,12 @@
+points = 800,
+linear_speed = 0.01,
+color_speed = 4.0,
+screen_size = 3.0,
+
+spd = time * 2.0,
+
+x =
+    cos(spd + theta * 9) *
+    sin(spd + theta * 17),
+
+y = sin(spd + theta * 17)

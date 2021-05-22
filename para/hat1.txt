@@ -1,0 +1,17 @@
+points = 800,
+wave_speed = 0.00121,
+linear_speed = 0.01,
+color_speed = 4.0,
+line_width = 3,
+
+spiral = sin(time + theta),
+
+x =
+    0.2 * sin(theta * 23) * spiral +
+    sin(theta)
+    sin(theta) * (2.5 * wave + 1.2 * (1-wave)),
+
+y =
+    0.2 * sin(pi/2 + theta * 23) * spiral +
+    sin(pi/2 + theta) * (1.5 * wave + 1.2 * (1-wave))
+
