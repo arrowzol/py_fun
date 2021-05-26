@@ -41,30 +41,33 @@ class ExprSet(object):
             tokens = lex_file(file_name)
         else:
             tokens = lex(expr_text)
-        self.exprs = []
-        self.exprs_by_name = {}
+        self.__exprs = []
+        self.__name_to_expr = {}
         while tokens:
             new_expr = Expr(tokens=tokens)
-            self.exprs.append(new_expr)
+            self.__exprs.append(new_expr)
 
             name = new_expr.get_assigned_name()
             if name:
-                self.exprs_by_name[name] = new_expr
+                self.__name_to_expr[name] = new_expr
 
             tokens = new_expr.get_unparsed_tokens()
             if tokens and tokens[0][0] == "delim":
                 tokens = tokens[1:]
 
-    def eval_name(self, name, missing=None):
-        if name in self.exprs_by_name:
+    def get_exprs(self):
+        return self.__exprs
+
+    def eval_for(self, name, missing=None):
+        if name in self.__name_to_expr:
             vs = {}
-            self.exprs_by_name[name].eval(vs)
+            self.__name_to_expr[name].eval(vs)
             return vs[name]
         else:
             return missing
 
-    def eval(self, vs):
-        return [expr.eval(vs) for expr in self.exprs]
+    def eval_all(self, vs):
+        return [expr.eval(vs) for expr in self.__exprs]
 
 ########################################
 # Lexer
