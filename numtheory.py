@@ -5,7 +5,7 @@ __all__ = [
     'primes_to', 'not_primes_to',
     'factor', 'divisors', 'proper_divisors',
     'is_abundant', 'is_amicable', 'is_deficient', 'is_perfect',
-    'is_probably_prime', 'next_probably_prime', 'powmod']
+    'is_probably_prime', 'next_probably_prime', 'powmod', 'mult_inverse']
 
 
 def gcd(a, b):
@@ -225,3 +225,29 @@ def next_probably_prime(n):
     while not is_probably_prime(n):
         n += 2
     return n
+
+def mult_inverse(a, n):
+    """returns 0 if there is no inverse"""
+    t1 = 0
+    t2 = 1
+    r1 = n
+    r2 = a
+
+    while r2 != 0:
+        quotient = r1 // r2
+
+        t3 = t1 - quotient * t2
+        t1 = t2
+        t2 = t3
+
+        r3 = r1 - quotient * r2
+        r1 = r2
+        r2 = r3
+
+    if r1 > 1:
+        return 0
+    if t1 < 0:
+        t1 = t1 + n
+
+    return t1
+
