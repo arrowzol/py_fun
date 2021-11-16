@@ -1,4 +1,4 @@
-from math import sqrt
+from math import sqrt,log
 import random
 
 __all__ = [
@@ -192,21 +192,30 @@ def is_abundant(n):
 
 
 def is_probably_prime(n):
-    # Quickly trim search with Fermat's test using a=2
-    if powmod(2, n-1, n) != 1:
-        return False
-    # Fermat's test using a=2 fails starting at 341
-    if n < 341:
-        return True
-        
-    # Now try more robust, but more expensive Miller-Rabin test
+    # quick scan to weed out many values
+    for a in primes_to(257):
+        if n%a == 0:
+            return False
+
+    # Miller-Rabin primality test, always correct up limits shown
     d = n-1
     r = 0
     while (d & 1) == 0:
         d //= 2
         r += 1
-    for a in range(100):
-        x = powmod(random.randint(2, n-1), d, n)
+
+    if n < 3215031751:
+        up_to = 7
+    elif n < 341550071728321:
+        up_to = 17
+    elif n < 3825123056546413051:
+        up_to = 23
+    elif n < 3317044064679887385961981:
+        up_to = 41
+    else:
+        up_to = 47
+    for a in primes_to(up_to):
+        x = powmod(a, d, n)
         if x != 1 and x != n-1:
             for y in range(r-1):
                 x = (x*x) % n
@@ -247,4 +256,7 @@ def mult_inverse(a, n):
         t1 = t1 + n
 
     return t1
+
+if __name__ == '__main__':
+    print(is_probably_prime(3317044064679887385961981))
 
