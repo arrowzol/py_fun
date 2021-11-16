@@ -53,10 +53,10 @@ def attack_pkcs1(key, c):
             every possible m in M_(i-1) is in M_i, but the reverse is not true, making M_i closer to identifying m
     """
 
+    decrypt_count = 0
+
     # know the target, just for debugging
     m_target = rsa.decrypt_raw(key, c)
-    print("   m0={0:80x}".format(m_target))
-
 
     n,e,d = key
     d = 0 # don't keep the secret key
@@ -65,7 +65,6 @@ def attack_pkcs1(key, c):
     data_bits = k - 11*8
     cmd_offset = data_bits + 9*8
     B = 1 << cmd_offset
-    print("   B2={0:80x}".format(B*2))
 
     i = 1
     ss = [100000]
@@ -79,19 +78,21 @@ def attack_pkcs1(key, c):
                 # Step 4
                 print("found={0:80x}".format(a))
                 print("   m0={0:80x}".format(m_target))
+                print("decrypt op count=%d"%decrypt_count)
                 break
 
-        # find m0*si which is conforming, and will divide the remaining search space into 20 pieces
+        # find m0*si which is conforming, and will divide the remaining search space into 23 pieces
         span = M[-1][1] - M[0][0]
-        si = 20 * n // span
+        si = 23 * n // span
 
-        # don't get stuck
+        # si should always be increasing
         if si <= ss[-1]:
             si = ss[-1]*53//47 + 1
 
         while True:
             ci = (c*nt.powmod(si, e, n)) % n
             mi = rsa.decrypt_pkcs1(key, ci)
+            decrypt_count += 1
             fail = mi == 0
             if not fail:
                 break
@@ -102,7 +103,7 @@ def attack_pkcs1(key, c):
         # find all overlaping places m0 may be
         Mi = []
         for a,b in M:
-            print("--- a={0:80x}\n--- b={0:80x}".format(a,b))
+            print("--- a={0:80x}\n--- b={1:80x}".format(a,b))
             r = ((a*si - 3*B) // n) + 1
 
             while True:
@@ -118,9 +119,9 @@ def attack_pkcs1(key, c):
                     break
 
                 print(
-"""-- r={0:d}, contains m: {1}
-    A={2:80x}
-    B={3:80x}""".format(r, m_min <= m_target <= m_max, m_min, m_max))
+"""-  r={0:d}, contains m: {1}
+  min={2:80x}
+  max={3:80x}""".format(r, m_min <= m_target <= m_max, m_min, m_max))
                 if m_min <= m_max:
                     Mi.append((m_min, m_max))
                 r += 1
@@ -145,15 +146,25 @@ def attack_pkcs1(key, c):
         i += 1
 
 if __name__ == '__main__':
-    key = rsa.create_key_bits(100)
+    import sys
 
-#    attack_raw_multiply(2)
-#    attack_raw_multiply(3)
-#    attack_raw_divide(2)
-#    attack_raw_divide(3)
+    key_bits = 100
+    if len(sys.argv) >= 3:
+        key_bits = int(sys.argv[2])
+    key = rsa.create_key_bits(key_bits)
 
-    c = rsa.encrypt_pkcs1(key, 123456789)
-    attack_pkcs1(key, c)
+    print("n={0:x} e={1:x} d={2:x}".format(key[0], key[1], key[2]))
+
+    cmd = sys.argv[1]
+    if cmd == "mul":
+        attack_raw_multiply(2)
+        attack_raw_multiply(3)
+    if cmd == "div":
+        attack_raw_divide(2)
+        attack_raw_divide(3)
+    if cmd == "pkcs1":
+        c = rsa.encrypt_pkcs1(key, 0x123456789abcdef)
+        attack_pkcs1(key, c)
 
 
 #
