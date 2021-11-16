@@ -167,20 +167,3 @@ if __name__ == '__main__':
         attack_pkcs1(key, c)
 
 
-#
-# types of attacks
-#   CCA - chosen cipher-text attack
-#       - In a CPA game, an adversary can
-#           - compute arbitrary decryptions of ciphertexts of its choice via an oracle, but does not have the private key
-#       goal: decrypt(c)
-#           decrypt(c*(s^e%n)) * s^-1%n
-#           attack is, decrypt something that is not c, and recover decription of c
-#           resources: decrypt anything except c
-#   CPA - chosen plain-text attack
-#       - In a CPA game, an adversary can
-#           - compute arbitrary encryptions of plaintexts of its choice (as it is given the public key by the challenger)
-#       goal: change value of decrypt(x)
-#           given c = encrypt(m)
-#           set c2 = (c * encrypt(2)) % n
-#           whoever runs decrypt(c2) will see 2*m
-#
