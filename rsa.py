@@ -25,7 +25,14 @@ def random_prime(bits):
         n += 2
     return n
 
-def create_key_bits(bits, r_count=2, e=0x1001):
+def create_key_bits(bits, r_count=2, e=None):
+    if not e:
+        if bits >= 14:
+            e = 0x1001
+        elif bits >= 10:
+            e = 0x101
+        else:
+            e = 0x11
     bits += 1
     primes = []
     n = 1
@@ -33,9 +40,11 @@ def create_key_bits(bits, r_count=2, e=0x1001):
         p_bits = (bits - n.bit_length()) // (r_count - r)
         p = random_prime(p_bits)
         p |= 1 << p_bits
+        while p in primes:
+            p = nt.next_probably_prime(p)
         n *= p
         primes.append(p)
-    if n.bit_length() > bits:
+    if bits > 10 and n.bit_length() > bits:
         p = p >> 1
         p |= 1
         while not nt.is_probably_prime(p):

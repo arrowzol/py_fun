@@ -1,4 +1,5 @@
 from math import sqrt
+import random
 
 __all__ = [
     'gcd', 'lcm',
@@ -115,7 +116,7 @@ def factor(n):
     while p <= limit:
         c = 0
         while n % p == 0:
-            n /= p
+            n //= p
             c += 1
         if c:
             limit = int(sqrt(n))
@@ -199,29 +200,25 @@ def is_probably_prime(n):
         return True
         
     # Now try more robust, but more expensive Miller-Rabin test
-    nm1 = n-1
-    d = nm1
-    s = 1
-    while d % 2 == 0:
-        d /= 2
-        s *= 2
-    for a in primes_to(100):
-        if powmod(a, d, n) != 1:
-            ss = 1
-            found = False
-            while ss < s:
-                if powmod(a, ss*d, n) == nm1:
-                    found = True
+    d = n-1
+    r = 0
+    while (d & 1) == 0:
+        d //= 2
+        r += 1
+    for a in range(100):
+        x = powmod(random.randint(2, n-1), d, n)
+        if x != 1 and x != n-1:
+            for y in range(r-1):
+                x = (x*x) % n
+                if x == n-1:
                     break
-                ss *= 2
-            if not found:
+            else:
                 return False
     return True
 
 
 def next_probably_prime(n):
-    if n%2 == 0:
-        n += 1
+    n += 1 + (n&1)
     while not is_probably_prime(n):
         n += 2
     return n
