@@ -192,12 +192,15 @@ def is_abundant(n):
 
 
 def is_probably_prime(n):
+    up_to = 257
+    if up_to >= n:
+        up_to = n // 2
     # quick scan to weed out many values
-    for a in primes_to(257):
+    for a in primes_to(up_to):
         if n%a == 0:
             return False
 
-    # Miller-Rabin primality test, always correct up limits shown
+    # Miller-Rabin primality test, always correct up limits shown, 3x10**24
     d = n-1
     r = 0
     while (d & 1) == 0:
