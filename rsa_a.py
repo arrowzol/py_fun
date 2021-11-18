@@ -4,10 +4,10 @@ import rsa
 def attack_raw_multiply(mult_by):
     print("raw attach, multiply by %d"%mult_by)
 
-    factor = nt.powmod(mult_by, key.e, key.n)
+    factor = nt.powmod(mult_by, key[1], key[0])
 
     for m in range(2, 24):
-        c = (rsa.encrypt_raw(key, m) * factor) % key.n
+        c = (rsa.encrypt_raw(key, m) * factor) % key[0]
         m2 = rsa.decrypt_raw(key, c)
         print("%d -> %d"%(m, m2))
 
@@ -15,10 +15,10 @@ def attack_raw_multiply(mult_by):
 def attack_raw_divide(div_by):
     print("raw attack, divide by %d"%div_by)
 
-    factor = nt.powmod(nt.mult_inverse(div_by, key.n), key.e, key.n)
+    factor = nt.powmod(nt.mult_inverse(div_by, key[0]), key[1], key[0])
 
     for m in range(2, 24):
-        c = (rsa.encrypt_raw(key, m) * factor) % key.n
+        c = (rsa.encrypt_raw(key, m) * factor) % key[0]
         m2 = rsa.decrypt_raw(key, c)
         print("%d -> %d"%(m, m2))
 
@@ -43,7 +43,9 @@ def attack_pkcs1(key, c):
 
         the math:
             c = encrypt(m)
-            c_i = encrypt(m*s_i) and m*s_i is a conforming message
+            M_0 = [(2B, 3B-1)], the initial interval where m is known to be
+            s_i = a "random" value, chosen to divide the intervals in M_(i-1) into a reasonable number of smaller intervals
+            c_i = encrypt(m*s_i) and m*s_i is a conforming message, computed as (c*s_i^e mod n)
             condition A: from previous iterations, it is known that m is in one of the intervals in M_i
             condition B: it is also known that m*s_i is in the interval define by:
                 2B <= (m*s_i) mod n <= 3B - 1
@@ -76,8 +78,8 @@ def attack_pkcs1(key, c):
             a,b = M[0]
             if a == b:
                 # Step 4
-                print("found=0x{0:080x}".format(a))
-                print("   m0=0x{0:080x}".format(m_target))
+                print("found={0:80x}".format(a))
+                print("   m0={0:80x}".format(m_target))
                 print("decrypt op count=%d"%decrypt_count)
                 break
 
@@ -103,7 +105,7 @@ def attack_pkcs1(key, c):
         # find all overlaping places m0 may be
         Mi = []
         for a,b in M:
-            print("--- a=0x{0:080x}\n--- b=0x{1:080x}".format(a,b))
+            print("--- a={0:80x}\n--- b={1:80x}".format(a,b))
             r = ((a*si - 3*B) // n) + 1
 
             while True:
@@ -120,8 +122,8 @@ def attack_pkcs1(key, c):
 
                 print(
 """-  r={0:d}, contains m: {1}
-  min=0x{2:080x}
-  max=0x{3:080x}""".format(r, m_min <= m_target <= m_max, m_min, m_max))
+  min={2:80x}
+  max={3:80x}""".format(r, m_min <= m_target <= m_max, m_min, m_max))
                 if m_min <= m_max:
                     Mi.append((m_min, m_max))
                 r += 1
@@ -145,27 +147,6 @@ def attack_pkcs1(key, c):
 
         i += 1
 
-def attack_weak_key(key):
-    phi = key.phi
-    pq_factors = nt.factor(key.primes[0]-1, 5000)[1:-2]
-    pq_factors.extend(nt.factor(key.primes[1]-1, 5000)[1:-2])
-    pq_factors.sort(key=lambda a:a[1])
-    print(repr(pq_factors))
-    for m in range(2,10):
-        print("--------------------")
-        c = rsa.encrypt_raw(key, m)
-        print("decrypt to %d with e       =%d"%(nt.powmod(c, key.d, key.n), key.d))
-        new_e = (key.d+key.phi//2) % key.phi
-        print("decrypt to %d with e+phi/2 =%d"%(nt.powmod(c, new_e, key.n), new_e))
-
-        div_by = pq_factors[-1][1]
-        new_e = (key.d+key.phi//div_by) % key.phi
-        print("decrypt to %d with e+phi/%d=%d"%(nt.powmod(c, new_e, key.n), div_by, new_e))
-
-        div_by = 2*pq_factors[-1][1]
-        new_e = (key.d+key.phi//div_by) % key.phi
-        print("decrypt to %d with e+phi/%d=%d"%(nt.powmod(c, new_e, key.n), div_by, new_e))
-
 def usage():
     print("usage: python3 rsa_attack.py <cmd> [<key-bits>]")
     print("  <cmd>:")
@@ -184,7 +165,7 @@ if __name__ == '__main__':
             key_bits = int(sys.argv[2])
         key = rsa.create_key_bits(key_bits)
 
-        print("n=0x{0:x} e=0x{1:x} d=0x{2:x}".format(key.n, key.e, key.d))
+        print("n={0:x} e={1:x} d={2:x}".format(key[0], key[1], key[2]))
 
         cmd = sys.argv[1]
         if cmd == "mul":
@@ -196,8 +177,6 @@ if __name__ == '__main__':
         elif cmd == "pkcs1":
             c = rsa.encrypt_pkcs1(key, 0x123456789abcdef)
             attack_pkcs1(key, c)
-        elif cmd == "weak":
-            attack_weak_key(key)
         else:
             print("ERROR: unknown command %s"%cmd)
             usage()

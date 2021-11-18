@@ -10,6 +10,14 @@ __all__ = [
 
 
 def gcd(a, b):
+    """
+    Compute greatest common divisor of a and b
+    inputs may be large integers
+
+    :param a: input value
+    :param b: input value
+    :return: gcd(a,b)
+    """
     if a < 0:
         a = -a
     if b < 0:
@@ -28,17 +36,50 @@ def gcd(a, b):
 
 
 def lcm(a, b):
-    return a*b/gcd(a, b)
+    """
+    Compute least common multiple of a and b
+    inputs may be large integers
+
+    :param a: input value
+    :param b: input value
+    :return: lcm(a,b)
+    """
+    return a*b//gcd(a, b)
+
+
+def pow(n, e):
+    """
+    Compute n^e
+
+    :param n: input value
+    :param e: input value
+    :return: n^e
+    """
+    a = 1
+    while e:
+        if e&1 == 1:
+            a *= n
+        e >>= 1
+        n *= n
+    return a
 
 
 def powmod(n, e, m):
-    """Return (n**e) % m"""
+    """
+    Compute (n^e) mod m
+    inputs may be large integers
+
+    :param n: input value
+    :param e: input value
+    :param m: input value
+    :return: n^e mod m
+    """
     a = 1
     while e:
-        if e%2 == 1:
+        if e&1 == 1:
             a *= n
             a %= m
-        e //= 2
+        e >>= 1
         n *= n
         n %= m
     return a
@@ -66,6 +107,8 @@ __add_prime.__primes = [2, 3]
 def primes_to(limit):
     """
     An iterator that produces all prime numbers (p) in ascending order that 1 < p <= limit
+    note that identifying primes becomes increasingly CPU intensive as they get larger
+    answers are cached to avoid recomputing on subsequent calls
 
     :param limit: The largest prime to return
     :return: An iterator over primes
@@ -84,6 +127,8 @@ def primes_to(limit):
 def not_primes_to(limit):
     """
     An iterator that produces all non-prime numbers (n) in ascending order s.t. 1 <= n <= limit
+    note that identifying primes becomes increasingly CPU intensive as they get larger
+    answers are cached to avoid recomputing on subsequent calls
 
     :param limit: The largest prime to return
     :return: An iterator over primes
@@ -103,17 +148,19 @@ def not_primes_to(limit):
         p = __primes[i]
 
 
-def factor(n):
+def factor(n, to=0):
     """
     Factor a number into its prime components
+    note that this becomes increasingly CPU intensive as the largest factor of n becomes larger
 
-    :return: A list of tuples of (count, prime factor)"""
+    :return: A list of tuples of (count, prime factor)
+    """
     __primes = __add_prime.__primes
     limit = int(sqrt(n))
     factors = []
     i = 0
     p = 2
-    while p <= limit:
+    while p <= limit and (not p or p < to):
         c = 0
         while n % p == 0:
             n //= p
@@ -133,9 +180,10 @@ def factor(n):
 def divisors(n):
     """
     Calculate all the positive divisors of n
+    note that this becomes increasingly CPU intensive as the largest factor of n becomes larger
 
-    :param n: The input
-    :return: A list of integers
+    :param n: input value
+    :return: list of divisors of n
     """
     f = factor(n)
     l = []
@@ -157,6 +205,7 @@ def divisors(n):
 def proper_divisors(n):
     """
     Calculate all the proper divisors of n
+    note that this becomes increasingly CPU intensive as the largest factor of n becomes larger
 
     :param n: The input
     :return: A list of integers
@@ -165,6 +214,8 @@ def proper_divisors(n):
 
 
 def sum_proper_divisors(n):
+    """
+    """
     spds = sum_proper_divisors.sum_divisors
     if n in spds:
         return spds[n]
@@ -194,17 +245,17 @@ def is_abundant(n):
 def is_probably_prime(n):
     up_to = 257
     if up_to >= n:
-        up_to = n // 2
+        up_to = n >> 1
     # quick scan to weed out many values
     for a in primes_to(up_to):
         if n%a == 0:
             return False
 
-    # Miller-Rabin primality test, always correct up limits shown, 3x10**24
+    # Miller-Rabin primality test, always correct up limits shown: about 3x10**24
     d = n-1
     r = 0
     while (d & 1) == 0:
-        d //= 2
+        d >>= 1
         r += 1
 
     if n < 3215031751:
@@ -260,6 +311,15 @@ def mult_inverse(a, n):
 
     return t1
 
+def euler_phi(n):
+    phi = 1
+    for c, p in factor(n):
+        phi *= (p-1)*pow(p, c-1)
+    return phi
+
+
 if __name__ == '__main__':
     print(is_probably_prime(3317044064679887385961981))
+    for i in range(1, 100):
+        print("phi(%d) = %d"%(i, euler_phi(i)))
 

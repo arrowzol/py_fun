@@ -32,12 +32,14 @@ class Matrix(object):
 
 import fraction as f
 
-for i in range(2, 21):
-    ml = [[f.Fraction(round(pow(x, y))) for y in range(i, 0, -1)] for x in range(1, i + 1)]
-    t = 0
-    for l in ml:
-        t += l[1]
-        l.append(t)
-    m = Matrix(ml)
-    m.solve()
-    print(' '.join(["%8s"%str(x[-1]) for x in m.rows()]))
+if __name__ == '__main__':
+    # solve for the coefficents of the polynomials for computing sum_of(k,p) = sum[n=1..k](n**p)
+    for i in range(2, 21):
+        ml = [[f.Fraction(round(pow(x, y))) for y in range(i, 0, -1)] for x in range(1, i + 1)]
+        t = 0
+        for l in ml:
+            t += l[1]
+            l.append(t)
+        m = Matrix(ml)
+        m.solve()
+        print(' '.join(["%8s"%str(x[-1]) for x in m.rows()]))

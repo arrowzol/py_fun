@@ -2,10 +2,19 @@ import numtheory as nt
 import secrets
 
 __all__ = [
+    'Key',
     'create_key_from_primes', 'create_key_bits',
     'encrypt_raw', 'decrypt_raw'
     'encrypt_pkcs1', 'decrypt_pkcs1'
     ]
+
+class Key:
+    def __init__(self, n, e, d, phi, primes):
+        self.n = n
+        self.e = e
+        self.d = d
+        self.phi = phi
+        self.primes = primes
 
 def create_key_from_primes(primes, e):
     n = phi = 1
@@ -17,9 +26,13 @@ def create_key_from_primes(primes, e):
         if d != 0:
             break
         e += 1
-    return (n, e, d)
+    return Key(n, e, d, phi, primes)
 
 def random_prime(bits):
+    if bits <= 2:
+        return 2
+    if bits <= 3:
+        return 3
     n = secrets.randbits(bits-1) | (1 << bits) | 1
     while not nt.is_probably_prime(n):
         n += 2
@@ -53,24 +66,24 @@ def create_key_bits(bits, r_count=2, e=None):
     return create_key_from_primes(primes, e)
 
 def encrypt_raw(key, m):
-    return nt.powmod(m, key[1], key[0])
+    return nt.powmod(m, key.e, key.n)
 
 def encrypt_pkcs1(key, m):
-    k = key[0].bit_length()-1
+    k = key.n.bit_length()-1
     data_bits = k - 11*8
     padding_offset = data_bits + 1*8
     cmd_offset = data_bits + 9*8
 
     raw_m =  (2 << cmd_offset) | (secrets.randbits(8*8) << padding_offset) | m
-    return nt.powmod(raw_m, key[1], key[0])
+    return nt.powmod(raw_m, key.e, key.n)
 
 def decrypt_raw(key, c):
-    return nt.powmod(c, key[2], key[0])
+    return nt.powmod(c, key.d, key.n)
 
 def decrypt_pkcs1(key, c):
-    raw_m = nt.powmod(c, key[2], key[0])
+    raw_m = nt.powmod(c, key.d, key.n)
 
-    k = key[0].bit_length()-1
+    k = key.n.bit_length()-1
     data_bits = k - 11*8
     padding_offset = data_bits + 1*8
     cmd_offset = data_bits + 9*8
@@ -84,6 +97,7 @@ def decrypt_pkcs1(key, c):
 
 if __name__ == '__main__':
     key = create_key_bits(100)
+    print("n=0x{0:x} e=0x{1:x} d=0x{2:x}".format(key.n, key.e, key.d))
 
     print("RAW")
     for m in range(2, 10):
