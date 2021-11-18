@@ -1,12 +1,15 @@
 from math import sqrt,log
 import random
+from functools import reduce
 
 __all__ = [
     'gcd', 'lcm',
     'primes_to', 'not_primes_to',
     'factor', 'divisors', 'proper_divisors',
     'is_abundant', 'is_amicable', 'is_deficient', 'is_perfect',
-    'is_probably_prime', 'next_probably_prime', 'powmod', 'mult_inverse']
+    'is_probably_prime', 'next_probably_prime', 'powmod', 'mult_inverse',
+    'carmichael_lambda', 'carmichael_lambda_list'
+    ]
 
 
 def gcd(a, b):
@@ -47,7 +50,7 @@ def lcm(a, b):
     return a*b//gcd(a, b)
 
 
-def pow(n, e):
+def power(n, e):
     """
     Compute n^e
 
@@ -160,7 +163,7 @@ def factor(n, to=0):
     factors = []
     i = 0
     p = 2
-    while p <= limit and (not p or p < to):
+    while p <= limit and (not to or p < to):
         c = 0
         while n % p == 0:
             n //= p
@@ -226,19 +229,40 @@ sum_proper_divisors.sum_divisors = {}
 
 
 def is_amicable(n):
+    """
+    Detect amicable numbers, number which
+    """
     spd = sum_proper_divisors(n)
     return spd != n and sum_proper_divisors(spd) == n
 
 
 def is_perfect(n):
+    """
+    Detect perfect numbers, number where sum(proper divisors of n) = n
+
+    :param n: The input
+    :return: True if n is perfect
+    """
     return n == sum_proper_divisors(n)
 
 
 def is_deficient(n):
+    """
+    Detect perfect numbers, number where sum(proper divisors of n) = n
+
+    :param n: The input
+    :return: True if n is perfect
+    """
     return n > sum_proper_divisors(n)
 
 
 def is_abundant(n):
+    """
+    Detect perfect numbers, number where sum(proper divisors of n) = n
+
+    :param n: The input
+    :return: True if n is perfect
+    """
     return n < sum_proper_divisors(n)
 
 
@@ -314,12 +338,46 @@ def mult_inverse(a, n):
 def euler_phi(n):
     phi = 1
     for c, p in factor(n):
-        phi *= (p-1)*pow(p, c-1)
+        phi *= (p-1)*power(p, c-1)
     return phi
 
+def carmichael_lambda(n):
+    p2c = {}
+    for c, p in factor(n):
+        # carmichael lambda of prime^exponent
+        if p == 2 and c >= 3:
+            lamb = (p-1)*power(p, c-2)
+        else:
+            lamb = (p-1)*power(p, c-1)
+
+        # perform lcm by finding max(exponents) for each prime
+        for c,p in factor(lamb):
+            p2c[p] = max(p2c.get(p,0), c)
+    return reduce(
+        lambda x,y:x*y,
+        (power(p,c) for p,c in p2c.items()),
+        1)
+
+def carmichael_lambda_list(ns):
+    p2c = {}
+    for n in ns:
+        for c, p in factor(n):
+            # carmichael lambda of prime^exponent
+            if p == 2 and c >= 3:
+                lamb = (p-1)*power(p, c-2)
+            else:
+                lamb = (p-1)*power(p, c-1)
+
+            # perform lcm by finding max(exponents) for each prime
+            for c,p in factor(lamb):
+                p2c[p] = max(p2c.get(p,0), c)
+    return reduce(
+        lambda x,y:x*y,
+        (power(p,c) for p,c in p2c.items()),
+        1)
 
 if __name__ == '__main__':
-    print(is_probably_prime(3317044064679887385961981))
-    for i in range(1, 100):
-        print("phi(%d) = %d"%(i, euler_phi(i)))
+    p = 23
+    for i in range(1, p):
+        print("multiplicative inverse of %d mod %d = %d"%(i, p, mult_inverse(i, p)))
 

@@ -1,5 +1,6 @@
 import numtheory as nt
 import rsa
+from functools import reduce
 
 def attack_raw_multiply(mult_by):
     print("raw attach, multiply by %d"%mult_by)
@@ -58,10 +59,7 @@ def attack_pkcs1(key, c):
     # know the target, just for debugging
     m_target = rsa.decrypt_raw(key, c)
 
-    n,e,d = key
-    d = 0 # don't keep the secret key
-
-    k = n.bit_length()-1
+    k = key.n.bit_length()-1
     data_bits = k - 11*8
     cmd_offset = data_bits + 9*8
     B = 1 << cmd_offset
@@ -76,21 +74,21 @@ def attack_pkcs1(key, c):
             a,b = M[0]
             if a == b:
                 # Step 4
-                print("found=0x{0:080x}".format(a))
-                print("   m0=0x{0:080x}".format(m_target))
+                print("found=0x{0:80x}".format(a))
+                print("   m0=0x{0:80x}".format(m_target))
                 print("decrypt op count=%d"%decrypt_count)
                 break
 
         # find m0*si which is conforming, and will divide the remaining search space into 23 pieces
         span = M[-1][1] - M[0][0]
-        si = 23 * n // span
+        si = 23 * key.n // span
 
         # si should always be increasing
         if si <= ss[-1]:
             si = ss[-1]*53//47 + 1
 
         while True:
-            ci = (c*nt.powmod(si, e, n)) % n
+            ci = (c*nt.powmod(si, key.e, key.n)) % key.n
             mi = rsa.decrypt_pkcs1(key, ci)
             decrypt_count += 1
             fail = mi == 0
@@ -103,15 +101,15 @@ def attack_pkcs1(key, c):
         # find all overlaping places m0 may be
         Mi = []
         for a,b in M:
-            print("--- a=0x{0:080x}\n--- b=0x{1:080x}".format(a,b))
-            r = ((a*si - 3*B) // n) + 1
+            print("\n--- a=0x{0:80x}\n--- b=0x{1:80x}".format(a,b))
+            r = ((a*si - 3*B) // key.n) + 1
 
             while True:
-                m_min = ((2*B + r*n)-1) // si + 1
+                m_min = ((2*B + r*key.n)-1) // si + 1
                 if m_min < a:
                     m_min = a
 
-                m_max = (3*B - 1 + r*n) // si
+                m_max = (3*B - 1 + r*key.n) // si
                 if m_max > b:
                     m_max = b
 
@@ -120,8 +118,8 @@ def attack_pkcs1(key, c):
 
                 print(
 """-  r={0:d}, contains m: {1}
-  min=0x{2:080x}
-  max=0x{3:080x}""".format(r, m_min <= m_target <= m_max, m_min, m_max))
+  min=0x{2:80x}
+  max=0x{3:80x}""".format(r, m_min <= m_target <= m_max, m_min, m_max))
                 if m_min <= m_max:
                     Mi.append((m_min, m_max))
                 r += 1
@@ -144,27 +142,6 @@ def attack_pkcs1(key, c):
         M.append((aa,bb))
 
         i += 1
-
-def attack_weak_key(key):
-    phi = key.phi
-    pq_factors = nt.factor(key.primes[0]-1, 5000)[1:-2]
-    pq_factors.extend(nt.factor(key.primes[1]-1, 5000)[1:-2])
-    pq_factors.sort(key=lambda a:a[1])
-    print(repr(pq_factors))
-    for m in range(2,10):
-        print("--------------------")
-        c = rsa.encrypt_raw(key, m)
-        print("decrypt to %d with e       =%d"%(nt.powmod(c, key.d, key.n), key.d))
-        new_e = (key.d+key.phi//2) % key.phi
-        print("decrypt to %d with e+phi/2 =%d"%(nt.powmod(c, new_e, key.n), new_e))
-
-        div_by = pq_factors[-1][1]
-        new_e = (key.d+key.phi//div_by) % key.phi
-        print("decrypt to %d with e+phi/%d=%d"%(nt.powmod(c, new_e, key.n), div_by, new_e))
-
-        div_by = 2*pq_factors[-1][1]
-        new_e = (key.d+key.phi//div_by) % key.phi
-        print("decrypt to %d with e+phi/%d=%d"%(nt.powmod(c, new_e, key.n), div_by, new_e))
 
 def usage():
     print("usage: python3 rsa_attack.py <cmd> [<key-bits>]")
@@ -196,8 +173,6 @@ if __name__ == '__main__':
         elif cmd == "pkcs1":
             c = rsa.encrypt_pkcs1(key, 0x123456789abcdef)
             attack_pkcs1(key, c)
-        elif cmd == "weak":
-            attack_weak_key(key)
         else:
             print("ERROR: unknown command %s"%cmd)
             usage()
