@@ -11,6 +11,8 @@ __all__ = [
     'carmichael_lambda', 'carmichael_lambda_list'
     ]
 
+# Prime Cache Limit
+PCL = 1000000
 
 def gcd(a, b):
     """
@@ -91,20 +93,11 @@ def powmod(n, e, m):
 def __add_prime():
     __primes = __add_prime.__primes
     n = __primes[-1] + 2
-    while True:
-        # test if n is prime
-        sn = int(sqrt(n))
-        for p in __primes:
-            if p > sn:
-                __primes.append(n)
-                return
-            if n%p == 0:
-                n += 2
-                break
-        else:
-            __primes.append(n)
-            return
-__add_prime.__primes = [2, 3]
+    while not is_probably_prime(n):
+        n += 2
+    __primes.append(n)
+__add_prime.__primes = [
+    2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97]
 
 
 def primes_to(limit):
@@ -121,10 +114,15 @@ def primes_to(limit):
     p = __primes[i]
     while p <= limit:
         yield p
-        i += 1
-        if len(__primes) <= i:
-            __add_prime()
-        p = __primes[i]
+        if p < PCL:
+            i += 1
+            if len(__primes) <= i:
+                __add_prime()
+            p = __primes[i]
+        else:
+            p += 2
+            while not is_probably_prime(p):
+                p += 2
 
 
 def not_primes_to(limit):
@@ -146,9 +144,14 @@ def not_primes_to(limit):
             l += 1
         l = p + 1
         i += 1
-        if len(__primes) <= i:
-            __add_prime()
-        p = __primes[i]
+        if p < PCL:
+            if len(__primes) <= i:
+                __add_prime()
+            p = __primes[i]
+        else:
+            p += 2
+            while not is_probably_prime(p):
+                p += 2
 
 
 def factor(n, to=0):
@@ -267,23 +270,34 @@ def is_abundant(n):
 
 
 def is_probably_prime(n):
-    up_to = 257
-    if up_to >= n:
-        up_to = n >> 1
+    """
+    Test any number for primality
+    Guaranteed accurate up to 3,317,044,064,679,887,385,961,981 or about 3x10**24
+
+    note: values taken from https://primes.utm.edu/prove/prove2_3.html
+    """
     # quick scan to weed out many values
+    up_to = 53
+    if up_to*up_to >= n:
+        up_to = int(sqrt(n))
     for a in primes_to(up_to):
         if n%a == 0:
             return False
 
-    # Miller-Rabin primality test, always correct up limits shown: about 3x10**24
-    d = n-1
-    r = 0
-    while (d & 1) == 0:
-        d >>= 1
-        r += 1
-
-    if n < 3215031751:
-        up_to = 7
+    # choose list of values for Miller-Rabin test
+    a_list = None
+    if   n < 53*53:
+        return True
+    elif n < 1373653:
+        up_to = 3
+    elif n < 9080191:
+        a_list = [31, 73]
+    elif n < 4759123141:
+        a_list = [2, 7, 61]
+    elif n < 2152302898747:
+        up_to = 11
+    elif n < 3474749660383:
+        up_to = 13
     elif n < 341550071728321:
         up_to = 17
     elif n < 3825123056546413051:
@@ -291,8 +305,20 @@ def is_probably_prime(n):
     elif n < 3317044064679887385961981:
         up_to = 41
     else:
+        # this is where the "probably" prime kicks in
         up_to = 47
-    for a in primes_to(up_to):
+
+    if not a_list:
+        a_list = primes_to(up_to)
+
+    # Miller-Rabin primality test, always correct up limits shown
+    d = n-1
+    r = 0
+    while (d & 1) == 0:
+        d >>= 1
+        r += 1
+
+    for a in a_list:
         x = powmod(a, d, n)
         if x != 1 and x != n-1:
             for y in range(r-1):
@@ -377,7 +403,21 @@ def carmichael_lambda_list(ns):
         1)
 
 if __name__ == '__main__':
-    p = 23
-    for i in range(1, p):
-        print("multiplicative inverse of %d mod %d = %d"%(i, p, mult_inverse(i, p)))
+#    p = 23
+#    for i in range(1, p):
+#        print("multiplicative inverse of %d mod %d = %d"%(i, p, mult_inverse(i, p)))
+
+    p_sum = 0
+    for p in primes_to(2000000):
+        p_sum += p
+    print("sum of primes to 2M: %d"%p_sum)
+    if p_sum != 142913828922:
+        raise Exception("prime list incorrect")
+
+    np_sum = 0
+    for np in not_primes_to(2000000):
+        np_sum += np
+    print("sum of non-primes to 2M: %d"%np_sum)
+    if np_sum != 1857073171099:
+        raise Exception("non-prime list incorrect")
 
