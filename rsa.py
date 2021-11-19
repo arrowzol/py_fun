@@ -34,7 +34,7 @@ def random_prime(bits):
     if bits <= 3:
         return 3
     n = secrets.randbits(bits-1) | (1 << bits) | 1
-    while not nt.is_probably_prime(n):
+    while not nt.probably_prime(n):
         n += 2
     return n
 
@@ -60,7 +60,7 @@ def create_key_bits(bits, r_count=2, e=None):
     if bits > 10 and n.bit_length() > bits:
         p = p >> 1
         p |= 1
-        while not nt.is_probably_prime(p):
+        while not nt.probably_prime(p):
             p += 2
         primes[-1] = p
     return create_key_from_primes(primes, e)
@@ -96,18 +96,24 @@ def decrypt_pkcs1(key, c):
 
 
 if __name__ == '__main__':
-    key = create_key_bits(100)
+    import sys
+
+    bits = 100
+    if len(sys.argv) >= 2:
+        bits = int(sys.argv[1])
+
+    key = create_key_bits(bits)
     print("n=0x{0:x} e=0x{1:x} d=0x{2:x}".format(key.n, key.e, key.d))
 
     print("RAW")
     for m in range(2, 10):
         c = encrypt_raw(key, m)
         m2 = decrypt_raw(key, c)
-        print("%d -> %d"%(m, m2))
+        print("{0} -> {0}   0x{2:x}".format(m, m2, c))
 
     print("PKCS1")
     for m in range(2, 10):
         c = encrypt_pkcs1(key, m)
         m2 = decrypt_pkcs1(key, c)
-        print("%d -> %d"%(m, m2))
+        print("{0} -> {0}   0x{2:x}".format(m, m2, c))
 

@@ -1,6 +1,8 @@
+import math
+from functools import reduce
+
 import numtheory as nt
 import rsa
-from functools import reduce
 
 def attack_raw_multiply(mult_by):
     print("raw attach, multiply by %d"%mult_by)
@@ -65,7 +67,7 @@ def attack_pkcs1(key, c):
     B = 1 << cmd_offset
 
     i = 1
-    ss = [100000]
+    ss = [1]
     M = [(2*B,3*B-1)]
 
     while True:
@@ -79,9 +81,9 @@ def attack_pkcs1(key, c):
                 print("decrypt op count=%d"%decrypt_count)
                 break
 
-        # find m0*si which is conforming, and will divide the remaining search space into 23 pieces
+        # find m0*si which is conforming, and will divide the remaining search space into 11 pieces
         span = M[-1][1] - M[0][0]
-        si = 23 * key.n // span
+        si = 11 * key.n // span
 
         # si should always be increasing
         if si <= ss[-1]:
@@ -143,6 +145,40 @@ def attack_pkcs1(key, c):
 
         i += 1
 
+def all_products(common_factors):
+    if not common_factors:
+        return [1]
+    p, c = common_factors[-1]
+    powers = [nt.power(p, cc) for cc in range(c+1)]
+    if len(common_factors) == 1:
+        return powers
+    return [a*b for a in all_products(common_factors[:-1]) for b in powers]
+        
+
+def attack_weak_key(key):
+    p_factors = nt.factor(key.primes[0]-1, 50000)
+    q_factors = nt.factor(key.primes[1]-1, 50000)
+    q_factors_dict = dict(((p,c) for c,p in q_factors))
+    common_factors = [(p, min(p_cnt, q_factors_dict[p])) for p_cnt, p in p_factors if p in q_factors_dict]
+    print("p-1 factored (cnt, prime): " + repr(p_factors))
+    print("q-1 factored (cnt, prime): " + repr(q_factors))
+    print("common factors (cnt, prime): " + repr(common_factors))
+
+    additive_divisor = reduce(lambda x,y:x*y, (nt.power(p,c) for p, c in common_factors))
+    print("there are %d different values for e and d that work"%(additive_divisor))
+
+    d_list = [(key.d + i * key.phi // additive_divisor) % key.phi for i in range(additive_divisor)]
+
+    many_primes = reduce(lambda x,y:x*y, nt.primes_to(50))
+
+    c = rsa.encrypt_raw(key, many_primes)
+    d_list.sort()
+    d_digits = math.ceil(math.log(d_list[-1],10))
+    print("----------------------------------------")
+    print("m             {0}{1:x}".format(" "*d_digits, many_primes))
+    for d in d_list:
+        print("decrypt d={0:{1}d} to {2:x}".format(d, d_digits, nt.powmod(c, d, key.n)))
+
 def usage():
     print("usage: python3 rsa_attack.py <cmd> [<key-bits>]")
     print("  <cmd>:")
@@ -160,6 +196,8 @@ if __name__ == '__main__':
         if len(sys.argv) >= 3:
             key_bits = int(sys.argv[2])
         key = rsa.create_key_bits(key_bits)
+        # use this for 40 different weak keys
+        # key = rsa.create_key_from_primes([401,281], 3)
 
         print("n=0x{0:x} e=0x{1:x} d=0x{2:x}".format(key.n, key.e, key.d))
 
@@ -173,6 +211,8 @@ if __name__ == '__main__':
         elif cmd == "pkcs1":
             c = rsa.encrypt_pkcs1(key, 0x123456789abcdef)
             attack_pkcs1(key, c)
+        elif cmd == "weak":
+            attack_weak_key(key)
         else:
             print("ERROR: unknown command %s"%cmd)
             usage()

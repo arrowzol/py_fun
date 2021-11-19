@@ -3,12 +3,20 @@ import random
 from functools import reduce
 
 __all__ = [
-    'gcd', 'lcm',
+    # exponentiation
+    'power', 'powmod', 'mult_inverse',
+
+    # raw prime numbers
     'primes_to', 'not_primes_to',
+    'probably_prime', 'next_probably_prime',
+
+    # factoring and friends
     'factor', 'divisors', 'proper_divisors',
-    'is_abundant', 'is_amicable', 'is_deficient', 'is_perfect',
-    'is_probably_prime', 'next_probably_prime', 'powmod', 'mult_inverse',
+    'gcd', 'lcm',
     'carmichael_lambda', 'carmichael_lambda_list'
+
+    # curiosities
+    'is_abundant', 'is_amicable', 'is_deficient', 'is_perfect',
     ]
 
 # Prime Cache Limit
@@ -90,14 +98,16 @@ def powmod(n, e, m):
     return a
 
 
+__primes = [
+    2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97]
+
 def __add_prime():
-    __primes = __add_prime.__primes
+    global __primes
+
     n = __primes[-1] + 2
-    while not is_probably_prime(n):
+    while not probably_prime(n):
         n += 2
     __primes.append(n)
-__add_prime.__primes = [
-    2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97]
 
 
 def primes_to(limit):
@@ -109,7 +119,8 @@ def primes_to(limit):
     :param limit: The largest prime to return
     :return: An iterator over primes
     """
-    __primes = __add_prime.__primes
+    global __primes
+
     i = 0
     p = __primes[i]
     while p <= limit:
@@ -121,7 +132,7 @@ def primes_to(limit):
             p = __primes[i]
         else:
             p += 2
-            while not is_probably_prime(p):
+            while not probably_prime(p):
                 p += 2
 
 
@@ -134,7 +145,8 @@ def not_primes_to(limit):
     :param limit: The largest prime to return
     :return: An iterator over primes
     """
-    __primes = __add_prime.__primes
+    global __primes
+
     i = 0
     l = 1
     p = __primes[i]
@@ -150,30 +162,33 @@ def not_primes_to(limit):
             p = __primes[i]
         else:
             p += 2
-            while not is_probably_prime(p):
+            while not probably_prime(p):
                 p += 2
 
 
-def factor(n, to=0):
+def factor(n, upto=0):
     """
     Factor a number into its prime components
     note that this becomes increasingly CPU intensive as the largest factor of n becomes larger
 
     :return: A list of tuples of (count, prime factor)
     """
-    __primes = __add_prime.__primes
+    global __primes
+
     limit = int(sqrt(n))
     factors = []
     i = 0
     p = 2
-    while p <= limit and (not to or p < to):
+    while p <= limit and (not upto or p < upto):
         c = 0
         while n % p == 0:
             n //= p
             c += 1
         if c:
-            limit = int(sqrt(n))
             factors.append((c, p))
+            if probably_prime(n):
+                break
+            limit = int(sqrt(n))
         i += 1
         if len(__primes) <= i:
             __add_prime()
@@ -269,18 +284,21 @@ def is_abundant(n):
     return n < sum_proper_divisors(n)
 
 
-def is_probably_prime(n):
+def probably_prime(n):
     """
     Test any number for primality
     Guaranteed accurate up to 3,317,044,064,679,887,385,961,981 or about 3x10**24
 
     note: values taken from https://primes.utm.edu/prove/prove2_3.html
     """
+    if n < 2:
+        return False
+
     # quick scan to weed out many values
-    up_to = 53
-    if up_to*up_to >= n:
-        up_to = int(sqrt(n))
-    for a in primes_to(up_to):
+    upto = 53
+    if upto*upto >= n:
+        upto = int(sqrt(n))
+    for a in primes_to(upto):
         if n%a == 0:
             return False
 
@@ -289,27 +307,27 @@ def is_probably_prime(n):
     if   n < 53*53:
         return True
     elif n < 1373653:
-        up_to = 3
+        upto = 3
     elif n < 9080191:
         a_list = [31, 73]
     elif n < 4759123141:
         a_list = [2, 7, 61]
     elif n < 2152302898747:
-        up_to = 11
+        upto = 11
     elif n < 3474749660383:
-        up_to = 13
+        upto = 13
     elif n < 341550071728321:
-        up_to = 17
+        upto = 17
     elif n < 3825123056546413051:
-        up_to = 23
+        upto = 23
     elif n < 3317044064679887385961981:
-        up_to = 41
+        upto = 41
     else:
         # this is where the "probably" prime kicks in
-        up_to = 47
+        upto = 47
 
     if not a_list:
-        a_list = primes_to(up_to)
+        a_list = primes_to(upto)
 
     # Miller-Rabin primality test, always correct up limits shown
     d = n-1
@@ -332,7 +350,7 @@ def is_probably_prime(n):
 
 def next_probably_prime(n):
     n += 1 + (n&1)
-    while not is_probably_prime(n):
+    while not probably_prime(n):
         n += 2
     return n
 
@@ -344,13 +362,13 @@ def mult_inverse(a, n):
     r2 = a
 
     while r2 != 0:
-        quotient = r1 // r2
+        q = r1 // r2
 
-        t3 = t1 - quotient * t2
+        t3 = t1 - q * t2
         t1 = t2
         t2 = t3
 
-        r3 = r1 - quotient * r2
+        r3 = r1 - q * r2
         r1 = r2
         r2 = r3
 
