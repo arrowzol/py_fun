@@ -165,7 +165,9 @@ def attack_weak_key(key):
     print("common factors (cnt, prime): " + repr(common_factors))
 
     additive_divisor = reduce(lambda x,y:x*y, (nt.power(p,c) for p, c in common_factors))
-    print("there are %d different values for e and d that work"%(additive_divisor))
+    print("there are %d different values for e and d that work, with a distance of %d between each"%(additive_divisor, key.phi // additive_divisor))
+    if additive_divisor > 1000:
+        return
 
     d_list = [(key.d + i * key.phi // additive_divisor) % key.phi for i in range(additive_divisor)]
 
@@ -179,12 +181,25 @@ def attack_weak_key(key):
     for d in d_list:
         print("decrypt d={0:{1}d} to {2:x}".format(d, d_digits, nt.powmod(c, d, key.n)))
 
+def create_weak_prime(bits, max_prime_factor):
+    while True:
+        p = 1
+        while p.bit_length() < bits:
+            p *= nt.random_prime_to(max_prime_factor)
+        p += 1
+        if nt.probably_prime(p):
+            return p
+
 def usage():
-    print("usage: python3 rsa_attack.py <cmd> [<key-bits>]")
+    print("usage: python3 rsa_attack.py <cmd> [<key-bits> [<max-factor-p-and-q>]]")
     print("  <cmd>:")
     print("    mul - demo multiplication of plain text after it is encrypted without decrypting")
     print("    div - demo division of plain text after it is encrypted without decrypting")
     print("    pkcs1 - demo decrypting PKCS#1 with an oracle that only reports bad formatting")
+    print("    weak - demo decrypting PKCS#1 with an oracle that only reports bad formatting")
+    print("  options:")
+    print("     <key-bits> sets the key size in bits, default 100")
+    print("     <max-factor-p-and-q> used to construct weak p and q by limiting the maximum prime factor of both")
 
 if __name__ == '__main__':
     import sys
@@ -195,9 +210,13 @@ if __name__ == '__main__':
         key_bits = 100
         if len(sys.argv) >= 3:
             key_bits = int(sys.argv[2])
-        key = rsa.create_key_bits(key_bits)
-        # use this for 40 different weak keys
-        # key = rsa.create_key_from_primes([401,281], 3)
+        if len(sys.argv) >= 4:
+            max_prime_factor = int(sys.argv[3])
+            p = create_weak_prime(key_bits // 2, max_prime_factor)
+            q = create_weak_prime(key_bits - p.bit_length(), max_prime_factor)
+            key = rsa.create_key_from_primes([p, q])
+        else:
+            key = rsa.create_key_bits(key_bits)
 
         print("n=0x{0:x} e=0x{1:x} d=0x{2:x}".format(key.n, key.e, key.d))
 

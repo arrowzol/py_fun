@@ -16,11 +16,18 @@ class Key:
         self.phi = phi
         self.primes = primes
 
-def create_key_from_primes(primes, e):
+def create_key_from_primes(primes, e=None):
     n = phi = 1
     for p in primes:
         n *= p
         phi *= (p-1)
+    if not e:
+        if phi > 0x1000:
+            e = 0x1001
+        elif phi >= 0x100:
+            e = 0x101
+        else:
+            e = 0x11
     while True:
         d = nt.mult_inverse(e, phi)
         if d != 0:
@@ -39,13 +46,6 @@ def random_prime(bits):
     return n
 
 def create_key_bits(bits, r_count=2, e=None):
-    if not e:
-        if bits >= 14:
-            e = 0x1001
-        elif bits >= 10:
-            e = 0x101
-        else:
-            e = 0x11
     bits += 1
     primes = []
     n = 1

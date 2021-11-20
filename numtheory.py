@@ -1,13 +1,14 @@
 from math import sqrt,log
-import random
+from secrets import randbelow
 from functools import reduce
+from bisect import bisect_left
 
 __all__ = [
     # exponentiation
     'power', 'powmod', 'mult_inverse',
 
     # raw prime numbers
-    'primes_to', 'not_primes_to',
+    'primes_to', 'not_primes_to', 'random_prime_to',
     'probably_prime', 'next_probably_prime',
 
     # factoring and friends
@@ -109,6 +110,20 @@ def __add_prime():
         n += 2
     __primes.append(n)
 
+
+def random_prime_to(limit):
+    global __primes
+
+    if limit > PCL:
+        raise Exception("this limit is not supported")
+
+    while __primes[-1] < limit:
+        __add_prime()
+
+    i = bisect_left(__primes, limit)
+    if __primes[i] < limit:
+        limit += 1
+    return __primes[randbelow(i)]
 
 def primes_to(limit):
     """
