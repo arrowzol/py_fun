@@ -1,7 +1,8 @@
 from math import sqrt,log
 from secrets import randbelow
 from functools import reduce
-from bisect import bisect_left
+from bisect import bisect_left, bisect_right
+from bitmap import BitMap
 
 __all__ = [
     # exponentiation
@@ -21,7 +22,7 @@ __all__ = [
     ]
 
 # Prime Cache Limit
-PCL = 1000000
+PCL = 500*1000*1000
 
 def gcd(a, b):
     """
@@ -99,30 +100,74 @@ def powmod(n, e, m):
     return a
 
 
-__primes = [
-    2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97]
+__primes = []
 
-def __add_prime():
+def __sieve_Eratosthenes(upto):
+    """
+    most efficient for primes up to 100M
+    """
     global __primes
 
-    n = __primes[-1] + 2
-    while not probably_prime(n):
-        n += 2
-    __primes.append(n)
+    # bootstrap up to first odd prime
+    if not __primes:
+        __primes.append(2)
+        __primes.append(3)
 
+    # if we've already got it, bail
+    last_prime = __primes[-1]
+    if last_prime >= upto:
+        return
+
+    # at least double the range
+    if upto < last_prime*2:
+        upto = last_prime*2
+
+    # but not more than PCL
+    if upto > PCL:
+        upto = PCL
+
+    limit = int(sqrt(upto))+1
+    bm = BitMap(upto//2)
+
+    # sieve in known primes
+    for p in __primes:
+        if p != 2:
+            start = 3*p
+            if start < last_prime:
+                start += (2*p)*((2*p - 1 + last_prime - start)//(2*p))
+            for pm in range(start, upto, 2*p):
+                bm.set(pm//2)
+
+    # sieve in new primes
+    for i in range(last_prime+2, limit, 2):
+        if not bm.test(i//2):
+            __primes.append(i)
+            for pm in range(3*i, upto, 2*i):
+                bm.set(pm//2)
+
+    # record primes larger that sqrt(upto)
+    last_prime = __primes[-1]
+    for j in range(last_prime+2, upto, 2):
+        if not bm.test(j//2):
+            __primes.append(j)
+
+    # add one more, some of the algos expect this
+    last_prime = __primes[-1]
+    __primes.append(next_probably_prime(last_prime))
 
 def random_prime_to(limit):
+    """
+    Return one prime (p) with 1 < p <= limit.
+    Each prime between 1 and limit has the same chance to be returned.
+    The ransomness is cryptographically random.
+    """
     global __primes
 
     if limit > PCL:
         raise Exception("this limit is not supported")
 
-    while __primes[-1] < limit:
-        __add_prime()
-
-    i = bisect_left(__primes, limit)
-    if __primes[i] < limit:
-        limit += 1
+    __sieve_Eratosthenes(limit)
+    i = bisect_right(__primes, limit)
     return __primes[randbelow(i)]
 
 def primes_to(limit):
@@ -136,14 +181,13 @@ def primes_to(limit):
     """
     global __primes
 
+    __sieve_Eratosthenes(limit)
     i = 0
     p = __primes[i]
     while p <= limit:
         yield p
         if p < PCL:
             i += 1
-            if len(__primes) <= i:
-                __add_prime()
             p = __primes[i]
         else:
             p += 2
@@ -153,7 +197,7 @@ def primes_to(limit):
 
 def not_primes_to(limit):
     """
-    An iterator that produces all non-prime numbers (n) in ascending order s.t. 1 <= n <= limit
+    An iterator that produces all non-prime numbers (n) in ascending order where 1 <= n <= limit
     note that identifying primes becomes increasingly CPU intensive as they get larger
     answers are cached to avoid recomputing on subsequent calls
 
@@ -162,23 +206,25 @@ def not_primes_to(limit):
     """
     global __primes
 
+    __sieve_Eratosthenes(limit)
     i = 0
-    l = 1
+    np = 1
     p = __primes[i]
     while p <= limit:
-        while l < p:
-            yield l
-            l += 1
-        l = p + 1
-        i += 1
+        while np < p:
+            yield np
+            np += 1
+        np = p + 1
         if p < PCL:
-            if len(__primes) <= i:
-                __add_prime()
+            i += 1
             p = __primes[i]
         else:
             p += 2
             while not probably_prime(p):
                 p += 2
+    while np <= limit:
+        yield np
+        np += 1
 
 
 def factor(n, upto=0):
@@ -190,7 +236,8 @@ def factor(n, upto=0):
     """
     global __primes
 
-    limit = int(sqrt(n))
+    limit = int(sqrt(n))+1
+    __sieve_Eratosthenes(limit)
     factors = []
     i = 0
     p = 2
@@ -203,11 +250,14 @@ def factor(n, upto=0):
             factors.append((c, p))
             if probably_prime(n):
                 break
-            limit = int(sqrt(n))
-        i += 1
-        if len(__primes) <= i:
-            __add_prime()
-        p = __primes[i]
+            limit = int(sqrt(n))+1
+        if p < PCL:
+            i += 1
+            p = __primes[i]
+        else:
+            p += 2
+            while not probably_prime(p):
+                p += 2
     if n > 1:
         factors.append((1, n))
     return factors
@@ -312,7 +362,7 @@ def probably_prime(n):
     # quick scan to weed out many values
     upto = 53
     if upto*upto >= n:
-        upto = int(sqrt(n))
+        upto = int(sqrt(n))+1
     for a in primes_to(upto):
         if n%a == 0:
             return False
@@ -325,12 +375,22 @@ def probably_prime(n):
         upto = 3
     elif n < 9080191:
         a_list = [31, 73]
+    elif n < 170584961:
+        a_list = [350, 3958281543]
     elif n < 4759123141:
         a_list = [2, 7, 61]
-    elif n < 2152302898747:
-        upto = 11
-    elif n < 3474749660383:
-        upto = 13
+    elif n < 75792980677:
+        a_list = [2, 379215, 457083754]
+#   elif n < 118670087467:
+#       if n == 3215031751:
+#           return False
+#       upto = 7
+#   elif n < 2152302898747:
+#       upto = 11
+#   elif n < 3474749660383:
+#       upto = 13
+    elif n < 21652684502221:
+        a_list = [2, 1215, 34862, 574237825]
     elif n < 341550071728321:
         upto = 17
     elif n < 3825123056546413051:
@@ -435,22 +495,39 @@ def carmichael_lambda_list(ns):
         (power(p,c) for p,c in p2c.items()),
         1)
 
+__sieve_Eratosthenes(1000*1000)
+
 if __name__ == '__main__':
-#    p = 23
-#    for i in range(1, p):
-#        print("multiplicative inverse of %d mod %d = %d"%(i, p, mult_inverse(i, p)))
+    if False:
+        p = 23
+        for i in range(1, p):
+            print("multiplicative inverse of %d mod %d = %d"%(i, p, mult_inverse(i, p)))
 
-    p_sum = 0
-    for p in primes_to(2000000):
-        p_sum += p
-    print("sum of primes to 2M: %d"%p_sum)
-    if p_sum != 142913828922:
-        raise Exception("prime list incorrect")
+    if False:
+        PCL = 1800*1000
+        p_sum = 0
+        for p in primes_to(2*1000*1000):
+            p_sum += p
+        print("sum of primes to 2M: %d"%p_sum)
+        if p_sum != 142913828922:
+            raise Exception("prime list incorrect")
 
-    np_sum = 0
-    for np in not_primes_to(2000000):
-        np_sum += np
-    print("sum of non-primes to 2M: %d"%np_sum)
-    if np_sum != 1857073171099:
-        raise Exception("non-prime list incorrect")
+        np_sum = 0
+        for np in not_primes_to(2*1000*1000):
+            np_sum += np
+        print("sum of non-primes to 2M: %d"%np_sum)
+        if np_sum != 1857087171078:
+            raise Exception("non-prime list incorrect")
+
+        if __primes[-1] != 1800037:
+            raise Exception("too many primes cached")
+
+        PCL = 20*1000*1000
+
+    if True:
+        PCL = 300*1000*1000
+        p_sum = 0
+        for p in primes_to(300*1000*1000):
+            p_sum += p
+        print("sum of primes to 2M: %d"%p_sum)
 
