@@ -2,6 +2,8 @@ from math import sqrt,log
 from secrets import randbelow
 from functools import reduce
 from bisect import bisect_left, bisect_right
+
+# pip3 install bitmap
 from bitmap import BitMap
 
 __all__ = [
@@ -100,7 +102,8 @@ def powmod(n, e, m):
     return a
 
 
-__primes = []
+# primes up to the first odd prime
+__primes = [2, 3]
 
 def __sieve_Eratosthenes(upto):
     """
@@ -108,17 +111,12 @@ def __sieve_Eratosthenes(upto):
     """
     global __primes
 
-    # bootstrap up to first odd prime
-    if not __primes:
-        __primes.append(2)
-        __primes.append(3)
-
     # if we've already got it, bail
     last_prime = __primes[-1]
     if last_prime >= upto:
         return
 
-    # at least double the range
+    # at least double the range when expanding the cache
     if upto < last_prime*2:
         upto = last_prime*2
 
@@ -129,7 +127,7 @@ def __sieve_Eratosthenes(upto):
     limit = int(sqrt(upto))+1
     bm = BitMap(upto//2)
 
-    # sieve in known primes
+    # "sieve in" known primes
     for p in __primes:
         if p != 2:
             start = 3*p
@@ -138,7 +136,7 @@ def __sieve_Eratosthenes(upto):
             for pm in range(start, upto, 2*p):
                 bm.set(pm//2)
 
-    # sieve in new primes
+    # "sieve in" new primes, record primes less than sqrt(upto)
     for i in range(last_prime+2, limit, 2):
         if not bm.test(i//2):
             __primes.append(i)
@@ -151,7 +149,7 @@ def __sieve_Eratosthenes(upto):
         if not bm.test(j//2):
             __primes.append(j)
 
-    # add one more, some of the algos expect this
+    # add one more, so that algorithms that need to see the "one that's too big" will get it from the cache
     last_prime = __primes[-1]
     __primes.append(next_probably_prime(last_prime))
 
@@ -182,11 +180,13 @@ def primes_to(limit):
     global __primes
 
     __sieve_Eratosthenes(limit)
+    pl = len(__primes)-1
+
     i = 0
     p = __primes[i]
     while p <= limit:
         yield p
-        if p < PCL:
+        if i < pl:
             i += 1
             p = __primes[i]
         else:
@@ -207,6 +207,8 @@ def not_primes_to(limit):
     global __primes
 
     __sieve_Eratosthenes(limit)
+    pl = len(__primes)-1
+
     i = 0
     np = 1
     p = __primes[i]
@@ -215,7 +217,7 @@ def not_primes_to(limit):
             yield np
             np += 1
         np = p + 1
-        if p < PCL:
+        if i < pl:
             i += 1
             p = __primes[i]
         else:
@@ -238,6 +240,8 @@ def factor(n, upto=0):
 
     limit = int(sqrt(n))+1
     __sieve_Eratosthenes(limit)
+    pl = len(__primes)-1
+
     factors = []
     i = 0
     p = 2
@@ -251,7 +255,7 @@ def factor(n, upto=0):
             if probably_prime(n):
                 break
             limit = int(sqrt(n))+1
-        if p < PCL:
+        if i < pl:
             i += 1
             p = __primes[i]
         else:
@@ -504,6 +508,13 @@ if __name__ == '__main__':
             print("multiplicative inverse of %d mod %d = %d"%(i, p, mult_inverse(i, p)))
 
     if False:
+        PCL = 300*1000*1000
+        p_sum = 0
+        for p in primes_to(300*1000*1000):
+            p_sum += p
+        print("sum of primes to 2M: %d"%p_sum)
+
+    if True:
         PCL = 1800*1000
         p_sum = 0
         for p in primes_to(2*1000*1000):
@@ -523,11 +534,4 @@ if __name__ == '__main__':
             raise Exception("too many primes cached")
 
         PCL = 20*1000*1000
-
-    if True:
-        PCL = 300*1000*1000
-        p_sum = 0
-        for p in primes_to(300*1000*1000):
-            p_sum += p
-        print("sum of primes to 2M: %d"%p_sum)
 
