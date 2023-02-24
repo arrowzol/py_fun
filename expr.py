@@ -3,9 +3,29 @@
 import re
 import math
 
+__all__ = [
+    # exceptions
+    'LexException', 'ParseException',
+
+    # classes
+    'Expr', 'ExprSet',
+
+    # extensions
+    'addBinaryOp',
+    ]
+
 ########################################
 # Expression Classes
 ########################################
+
+class LexException(Exception):
+    pass
+
+class ParseException(Exception):
+    pass
+
+class EvalException(Exception):
+    pass
 
 class Expr(object):
     def __init__(self, expr_text=None, tokens=None):
@@ -16,7 +36,7 @@ class Expr(object):
         self.expr_tree = fold_constants(self.orig_expr_tree)
         self.expr_func = tree_to_func(self.expr_tree)
         if expr_text and self.__unparsed_tokens:
-            raise Exception("error at " + repr(self.__unparsed_tokens))
+            raise ParseException("error at " + repr(self.__unparsed_tokens))
 
         # compute required variables
         self.var_names = set()
@@ -70,15 +90,32 @@ class ExprSet(object):
         return [expr.eval(vs) for expr in self.__exprs]
 
 ########################################
+# Binary Operators
+########################################
+
+BIN_OPS = {
+    '*': (2, lambda a,b:a*b),
+    '/': (2, lambda a,b:a/b),
+    '+': (3, lambda a,b:a+b),
+    '-': (3, lambda a,b:a-b),
+}
+
+highestPrecedenceOp = 2
+lowestPrecedenceOp = 3
+
+def addBinaryOp(symbol, precedence, func):
+    LEX_TOKENS_EXT.append((re.compile(r"\s*(" + "".join(("[%s]"%s for s in symbol)) + ")"), "bop"))
+    BIN_OPS[symbol] = (precedence, func)
+
+########################################
 # Lexer
 ########################################
 
 LEX_TOKENS = [
         (r"\d*[.]\d+", "lit_float"),
         (r"\d+", "lit_int"),
-        (r"=", "op1"),
-        (r"[*/]", "op2"),
-        (r"[-+]", "op3"),
+        (r"=", "eq"),
+        (r"[-+*/]", "bop"),
         (r"[(]", "open"),
         (r"[)]", "close"),
         (r"[,]", "delim"),
@@ -87,11 +124,14 @@ LEX_TOKENS = [
 
 LEX_TOKENS = [(re.compile(r"\s*(" + t1 + ")"), t2) for t1, t2 in LEX_TOKENS]
 
+LEX_TOKENS_EXT = []
+
 def lex(expr_text):
+    LEX_T = LEX_TOKENS_EXT + LEX_TOKENS
     tokens = []
     position = 0
     while expr_text:
-        for t1, t2 in LEX_TOKENS:
+        for t1, t2 in LEX_T:
             m = t1.match(expr_text)
             if m:
                 tokens.append((t2, m.group(1)))
@@ -99,7 +139,7 @@ def lex(expr_text):
                 expr_text = expr_text[m.end():]
                 break
         else:
-            raise Exception("can't tokenize at " + expr_text)
+            raise LexException("can't tokenize at " + expr_text)
     return tokens
 
 def lex_file(file_name):
@@ -126,18 +166,23 @@ def parse(tokens):
         ("binop", op, expr1_tree, expr2_tree)
         ("lit_int", int)
         ("lit_float", float)
+        ("lit_other", <extension-object>)
 
     :return: (remaning tokens, expr_tree)
     """
     if tokens:
         tokens, expr1_tree = parse_leaf(tokens)
-        return parse_expr3(tokens, expr1_tree)
+        return parse_expr_binops(tokens, expr1_tree, lowestPrecedenceOp)
     return (None, None)
 
-def parse_expr3(tokens, expr1_tree):
+def parse_expr_binops(tokens, expr1_tree, precedence):
     "Expect binary ops (+, -)"
 
-    tokens, expr1_tree = parse_expr2(tokens, expr1_tree)
+    if precedence == highestPrecedenceOp:
+        parse_expr_next = parse_expr1
+    else:
+        parse_expr_next = parse_expr_binops
+    tokens, expr1_tree = parse_expr_next(tokens, expr1_tree, precedence-1)
     if not tokens:
         return (tokens, expr1_tree)
 
@@ -145,30 +190,14 @@ def parse_expr3(tokens, expr1_tree):
     tok_type = top_token[0]
     tok_value = top_token[1]
 
-    if tok_type == "op3":
-        tokens, expr2_tree = parse_leaf(tokens[1:])
-        tokens, expr2_tree = parse_expr2(tokens, expr2_tree)
-        return parse_expr3(tokens, ("binop", tok_value, expr1_tree, expr2_tree))
+    if tok_type == "bop":
+        if BIN_OPS[tok_value][0] == precedence:
+            tokens, expr2_tree = parse_leaf(tokens[1:])
+            tokens, expr2_tree = parse_expr_next(tokens, expr2_tree, precedence-1)
+            return parse_expr_next(tokens, ("binop", tok_value, expr1_tree, expr2_tree), precedence)
     return (tokens, expr1_tree)
 
-def parse_expr2(tokens, expr1_tree):
-    "Expect binary ops (*, /)"
-
-    tokens, expr1_tree = parse_expr1(tokens, expr1_tree)
-    if not tokens:
-        return (tokens, expr1_tree)
-
-    top_token = tokens[0]
-    tok_type = top_token[0]
-    tok_value = top_token[1]
-
-    if tok_type == "op2":
-        tokens, expr2_tree = parse_leaf(tokens[1:])
-        tokens, expr2_tree = parse_expr1(tokens, expr2_tree)
-        return parse_expr2(tokens, ("binop", tok_value, expr1_tree, expr2_tree))
-    return (tokens, expr1_tree)
-
-def parse_expr1(tokens, expr1_tree):
+def parse_expr1(tokens, expr1_tree, precedence):
     "Expect binary ops (=)"
 
     if not tokens:
@@ -177,12 +206,12 @@ def parse_expr1(tokens, expr1_tree):
     top_token = tokens[0]
     tok_type = top_token[0]
 
-    if tok_type == "op1":
+    if tok_type == "eq":
         if expr1_tree[0] != "var":
-            raise Exception("LHS must be a variable name " + repr(tokens))
+            raise ParseException("LHS must be a variable name " + repr(tokens))
         tokens, expr2_tree = parse(tokens[1:])
         name = expr1_tree[1]
-        return parse_expr1(tokens, ["assign", name, expr2_tree])
+        return parse_expr1(tokens, ["assign", name, expr2_tree], 0)
     return (tokens, expr1_tree)
 
 def parse_leaf(tokens):
@@ -202,8 +231,8 @@ def parse_leaf(tokens):
         if tokens and tokens[0][0] == "close":
             return (tokens[1:], expr_tree)
         else:
-            raise Exception("missing closing paren at " + repr(tokens))
-    raise Exception("parse error at " + repr(tokens))
+            raise ParseException("missing closing paren at " + repr(tokens))
+    raise ParseException("parse error at " + repr(tokens))
 
 def parse_name(tokens, name):
     if tokens:
@@ -215,7 +244,7 @@ def parse_name(tokens, name):
                     raise Excpetion("uknown function " + name)
                 return (tokens[1:], ("func", name, expr_tree))
             else:
-                raise Exception("missing closing paren at " + repr(tokens))
+                raise ParseException("missing closing paren at " + repr(tokens))
     if name == "pi":
         return (tokens, ("lit_float", name))
     return (tokens, ("var", name))
@@ -248,14 +277,8 @@ def tree_to_func(expr_tree):
         node_type, name, expr1_tree, expr2_tree = expr_tree
         expr1_func = tree_to_func(expr1_tree)
         expr2_func = tree_to_func(expr2_tree)
-        if name == "+":
-            return lambda vs: expr1_func(vs) + expr2_func(vs)
-        if name == "-":
-            return lambda vs: expr1_func(vs) - expr2_func(vs)
-        if name == "*":
-            return lambda vs: expr1_func(vs) * expr2_func(vs)
-        if name == "/":
-            return lambda vs: expr1_func(vs) / expr2_func(vs)
+        func = BIN_OPS[name][1]
+        return lambda vs: func(expr1_func(vs), expr2_func(vs))
     if node_type == "lit_int":
         int_value = int(expr_tree[1])
         return lambda vs: int_value
@@ -266,6 +289,8 @@ def tree_to_func(expr_tree):
         else:
             float_value = float(float_value)
         return lambda vs: float_value
+    if node_type == "lit_other":
+        return lambda vs: expr_tree[1]
     raise Exception("bad parse tree type: %s"%(node_type))
 
 def is_const_node(expr_tree):
@@ -289,8 +314,10 @@ def fold_constants(expr_tree):
         const_value = tree_to_func(expr_tree)(None)
         if type(const_value) == int:
             return ("lit_int", const_value)
-        else:
+        elif type(const_value) == float:
             return ("lit_float", const_value)
+        else:
+            return ("lit_other", const_value)
     return expr_tree
 
 def get_sets(var_names, assign_names, expr_tree):
